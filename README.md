@@ -1,4 +1,4 @@
-# 🖱️ Lenovo 14w Gen 2 — Correctif touchpad sous Linux
+# Lenovo 14w Gen 2 — Correctif touchpad sous Linux pour ordi PNL
 
 > **Traduit, corrigé et enrichi** à partir du [Gist original de cg666](https://gist.github.com/cg666/6069eb9619ce2e1dc1664193a5540147).
 
@@ -19,8 +19,8 @@ sudo bash fix-touchpad-lenovo-14w.sh
 reboot
 ```
 
-> ⚠️ Le script doit être exécuté en **root** (ou avec `sudo`).
-> ✅ Testé sur **Debian 13**.
+Le script doit être exécuté en **root** (ou avec `sudo`).
+
 
 ## Vérification après redémarrage
 
