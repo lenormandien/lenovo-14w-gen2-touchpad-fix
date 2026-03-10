@@ -11,9 +11,8 @@ La cause : le fichier **ACPI DSDT**, un fichier de configuration bas-niveau qui 
 
 La solution : on va corriger ce fichier, puis demander à Linux de l'utiliser à la place de celui du BIOS.
 
-> ⚠️ **Toutes les commandes sont à exécuter en tant que root** (administrateur). Tu peux utiliser `sudo su` pour passer root, ou préfixer chaque commande par `sudo`.
+**Toutes les commandes sont à exécuter en tant que root** (administrateur). Tu peux utiliser `sudo su` pour passer root, ou préfixer chaque commande par `sudo`.
 
-> ✅ Testé sur **Debian 13**.
 
 ---
 
