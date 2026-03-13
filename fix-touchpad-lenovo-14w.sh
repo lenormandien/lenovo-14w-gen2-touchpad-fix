@@ -40,7 +40,7 @@ fi
 success "Tous les outils sont disponibles."
 
 # --- Téléchargement du DSDT corrigé depuis GitHub ---
-GITHUB_URL="https://raw.githubusercontent.com/lenormandien/lenovo-14w-gen2-touchpad-fix/main/dsdt.dsl"
+GITHUB_URL="https://raw.githubusercontent.com/lenormandien/lenovo-14w-gen2-touchpad-fix/dsdt.dsl"
 WORKDIR=$(mktemp -d /tmp/acpi-fix-XXXXXX)
 cd "$WORKDIR"
 
