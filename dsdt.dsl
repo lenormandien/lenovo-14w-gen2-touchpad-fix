@@ -7175,14 +7175,8 @@ DefinitionBlock ("", "DSDT", 1, "LENOVO", "AMD", 0x00001000)
 
             Method (_S0W, 0, NotSerialized)  // _S0W: S0 Device Wake State
             {
-                If ((IC3D && IC3E))
-                {
-                    Return (0x04)
-                }
-                Else
-                {
-                    Return (0x00)
-                }
+                // Fix ELAN0643: forcer D0 en S0, interdire D3hot runtime PM
+                Return (0x00)
             }
 
             Method (_PS0, 0, NotSerialized)  // _PS0: Power State 0
@@ -7195,10 +7189,7 @@ DefinitionBlock ("", "DSDT", 1, "LENOVO", "AMD", 0x00001000)
 
             Method (_PS3, 0, NotSerialized)  // _PS3: Power State 3
             {
-                If ((IC3D && IC3E))
-                {
-                    DSAD (0x08, 0x03)
-                }
+                // Fix ELAN0643: neutralisé — empêche la mise en D3hot du contrôleur I2CD
             }
         }
 
