@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 # Installation du DSDT corrigé pour ELAN0643 — Lenovo 14w Gen 2
-# Utilise le dépôt GitHub local déjà cloné pour installer le DSDT pré-corrigé.
+# Utilise le fichier dsdt.dsl déjà présent dans le répertoire courant.
 # =============================================================================
 
 set -euo pipefail
@@ -35,28 +35,15 @@ done
 if [ ${#MISSING[@]} -gt 0 ]; then
     warning "Outils manquants : ${MISSING[*]}"
     info "Installation en cours..."
-    apt-get update && apt-get install -y acpica-tools cpio || error "Échec de l'installation des outils."
+    apt-get update && apt-get install -y acpica-tools cpio || error "Échec de l'installation."
 fi
 success "Tous les outils sont disponibles."
 
-# --- Vérification du dépôt GitHub local ---
-REPO_DIR="lenovo-14w-gen2-touchpad-fix"
-DSDT_SRC="$REPO_DIR/dsdt.dsl"
-
-if [ ! -d "$REPO_DIR" ]; then
-    error "Le dépôt '$REPO_DIR' n'existe pas. Clone-le d'abord avec :\n  git clone https://github.com/lenormandien/lenovo-14w-gen2-touchpad-fix.git"
+# --- Vérification du fichier dsdt.dsl local ---
+if [ ! -f "dsdt.dsl" ]; then
+    error "Fichier 'dsdt.dsl' introuvable dans le répertoire courant. Vérifie son emplacement."
 fi
-
-if [ ! -f "$DSDT_SRC" ]; then
-    error "Fichier '$DSDT_SRC' introuvable. Vérifie le dépôt cloné."
-fi
-success "DSDT corrigé trouvé : $DSDT_SRC"
-
-# --- Copie du DSDT corrigé dans un répertoire temporaire ---
-WORKDIR=$(mktemp -d /tmp/acpi-fix-XXXXXX)
-cp "$DSDT_SRC" "$WORKDIR/dsdt.dsl"
-cd "$WORKDIR"
-success "DSDT copié dans $WORKDIR/dsdt.dsl"
+success "Fichier dsdt.dsl trouvé dans le répertoire courant."
 
 # --- Recompilation du DSDT ---
 info "Recompilation du DSDT..."
@@ -67,9 +54,10 @@ success "DSDT recompilé avec succès (dsdt.aml généré)."
 
 # --- Installation des tables ACPI ---
 info "Installation des tables ACPI..."
-mkdir -p kernel/firmware/acpi
-cp dsdt.aml kernel/firmware/acpi/
-find kernel | cpio -H newc --create > /boot/initrd_acpi_patched
+WORKDIR=$(mktemp -d /tmp/acpi-fix-XXXXXX)
+mkdir -p "$WORKDIR/kernel/firmware/acpi"
+cp dsdt.aml "$WORKDIR/kernel/firmware/acpi/"
+find "$WORKDIR/kernel" | cpio -H newc --create > /boot/initrd_acpi_patched
 echo 'GRUB_EARLY_INITRD_LINUX_CUSTOM="initrd_acpi_patched"' > /etc/default/grub.d/acpi-tables.cfg
 if ! update-grub; then
     error "Échec de la mise à jour de GRUB."
@@ -77,7 +65,6 @@ fi
 success "Tables ACPI installées avec succès."
 
 # --- Nettoyage ---
-cd /
 rm -rf "$WORKDIR"
 success "Nettoyage terminé."
 
