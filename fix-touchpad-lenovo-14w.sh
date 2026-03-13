@@ -1,139 +1,62 @@
 #!/bin/bash
 # =============================================================================
-# Correctif touchpad ELAN0643 — Lenovo 14w Gen 2 (version adaptée pour 82N9)
-# Source : https://github.com/lenormandien/lenovo-14w-gen2-touchpad-fix
-# Adapté pour les modèles Lenovo 14w Gen 2 (y compris 82N9) et Linux Mint 22.3.
+# Correctif complet pour touchpad ELAN0643 — Lenovo 14w Gen 2 (82N9)
+# Applique les corrections _DSM et _CRS, puis installe les tables ACPI.
 # =============================================================================
 
-set -euo pipefail  # Arrête le script si une commande échoue ou si une variable est non définie
+set -euo pipefail
 
-# --- Couleurs pour les messages ---
+# --- Couleurs ---
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
 success() { echo -e "${GREEN}[OK]${NC} $1"; }
 warning() { echo -e "${YELLOW}[ATTENTION]${NC} $1"; }
 error()   { echo -e "${RED}[ERREUR]${NC} $1"; exit 1; }
 
-# =============================================================================
-# 0. Vérifications préliminaires
-# =============================================================================
-
-echo ""
-echo -e "${BLUE}============================================================${NC}"
-echo -e "${BLUE}   Correctif touchpad ELAN0643 — Lenovo 14w Gen 2 (82N9)${NC}"
-echo -e "${BLUE}============================================================${NC}"
-echo ""
-
-# Vérifier qu'on est root
+# --- Vérifications préliminaires ---
 if [ "$EUID" -ne 0 ]; then
-    error "Ce script doit être exécuté en tant que root.\nRelance avec : sudo bash $0"
+    error "Exécute ce script en root : sudo bash $0"
 fi
 
-# --- Vérification non bloquante de l'OS (Linux Mint 22.3) ---
-OS_INFO=$(lsb_release -d 2>/dev/null | grep -i "Description" | cut -d':' -f2 | sed 's/^[ \t]*//' || echo "inconnu")
-if [[ "$OS_INFO" != *"Linux Mint 22"* && "$OS_INFO" != *"Linux Mint 21"* ]]; then
-    warning "Ce script a été testé principalement sur Linux Mint 22.3.\nOS détecté : $OS_INFO"
-    read -rp "Continuer quand même ? (O/n) : " CONFIRM
-    [[ "$CONFIRM" =~ ^[nN]$ ]] && exit 0
-else
-    success "OS compatible détecté : $OS_INFO"
-fi
-
-# Vérifier les outils nécessaires
-info "Vérification des outils nécessaires..."
-MISSING=()
-for tool in acpidump iasl cpio update-grub; do
-    if ! command -v "$tool" &> /dev/null; then
-        MISSING+=("$tool")
-    fi
-done
-
-if [ ${#MISSING[@]} -gt 0 ]; then
-    warning "Outils manquants : ${MISSING[*]}"
-    info "Installation en cours..."
-    apt-get update && apt-get install -y acpica-tools acpidump cpio || error "Impossible d'installer les outils."
-fi
-success "Tous les outils sont disponibles."
-
-# Vérifier qu'on est bien sur un Lenovo 14w Gen 2 (y compris 82N9)
-PRODUCT=$(cat /sys/class/dmi/id/product_name 2>/dev/null || echo "inconnu")
-LENOVO_14W_MODELS=("14w" "82N9" "82N9CTO" "14w Gen 2" "20XW" "20XWCTO")
-
-IS_LENOVO_14W=false
-for model in "${LENOVO_14W_MODELS[@]}"; do
-    if [[ "$PRODUCT" == *"$model"* ]]; then
-        IS_LENOVO_14W=true
-        break
-    fi
-done
-
-if [ "$IS_LENOVO_14W" = false ]; then
-    warning "Ce laptop ne semble pas être un Lenovo 14w Gen 2 (détecté : $PRODUCT)."
-    read -rp "Ce correctif est conçu pour les modèles Lenovo 14w Gen 2 (ex: 82N9).\nForcer l'exécution ? (o/N) : " CONFIRM
-    [[ "$CONFIRM" =~ ^[oO]$ ]] || exit 0
-else
-    success "Modèle compatible détecté : $PRODUCT (Lenovo 14w Gen 2)."
-fi
-
-# Répertoire de travail temporaire
 WORKDIR=$(mktemp -d /tmp/acpi-fix-XXXXXX)
 info "Répertoire de travail : $WORKDIR"
-cd "$WORKDIR" || error "Impossible de se déplacer dans $WORKDIR"
+cd "$WORKDIR"
 
-# =============================================================================
-# 1. Extraction et décompilation des tables ACPI
-# =============================================================================
-
-echo ""
-info "Étape 1 — Extraction des tables ACPI..."
+# --- Extraction des tables ACPI ---
+info "Extraction des tables ACPI..."
 mkdir -p acpi/dat acpi/dsl
-cd acpi/dat || error "Impossible de se déplacer dans acpi/dat"
-acpidump -b || error "Échec de l'extraction des tables ACPI."
-iasl -d *.dat 2>/dev/null || error "Échec de la décompilation des tables ACPI."
-mv *.dsl ../dsl 2>/dev/null
-cd "$WORKDIR" || error "Impossible de revenir dans $WORKDIR"
-success "Tables ACPI extraites et décompilées."
+cd acpi/dat
+acpidump -b || error "Échec de l'extraction ACPI."
+iasl -d *.dat || error "Échec de la décompilation."
+mv *.dsl ../dsl
+cd "$WORKDIR"
+success "Tables ACPI extraites."
 
 DSDT="$WORKDIR/acpi/dsl/dsdt.dsl"
-[ -f "$DSDT" ] || error "Fichier dsdt.dsl introuvable après décompilation."
+[ -f "$DSDT" ] || error "Fichier DSDT introuvable."
 
-# =============================================================================
-# 2. Vérification que le touchpad ELAN0643 est bien présent dans le DSDT
-# =============================================================================
-
-echo ""
-info "Étape 2 — Recherche du touchpad ELAN0643 dans le DSDT..."
-if ! grep -q "ELAN0643" "$DSDT"; then
-    error "ELAN0643 non trouvé dans le DSDT. Ce correctif ne s'applique pas à ce système."
-fi
-success "Touchpad ELAN0643 trouvé dans le DSDT."
-
-# =============================================================================
-# 3. Patch du fichier DSDT
-# =============================================================================
-
-echo ""
-info "Étape 3 — Application du correctif sur le DSDT..."
-
-# Sauvegarde
-cp "$DSDT" "${DSDT}.bak" || error "Impossible de sauvegarder $DSDT"
+# --- Sauvegarde du DSDT original ---
+cp "$DSDT" "${DSDT}.bak"
 info "Sauvegarde créée : ${DSDT}.bak"
 
-# --- Correction 1 : méthode _DSM ---
-# Remplace le second "If TPTY == 0x02" par "Else" dans le bloc Case(0x01)
-python3 - "$DSDT" <<'PYEOF'
+# --- Application des corrections ---
+info "Application des corrections..."
+
+# Correction 1 : _DSM (Case 0x01)
+# Correction 2 : _CRS (If -> Else)
+python3 - "$DSDT" << 'PYEOF'
 import sys, re
 
 with open(sys.argv[1], 'r') as f:
     content = f.read()
 
-# Correction 1 : _DSM — second If -> Else dans Case(0x01)
-old1 = (
+# --- Correction 1 : _DSM (Case 0x01) ---
+old_dsm = (
     'Return (0x01)\n'
     '                            }\n'
     '\n'
@@ -142,7 +65,7 @@ old1 = (
     '                                Return (0x20)\n'
     '                            }'
 )
-new1 = (
+new_dsm = (
     'Return (0x01)\n'
     '                            }\n'
     '                            Else\n'
@@ -151,101 +74,100 @@ new1 = (
     '                                Return (0x20)\n'
     '                            }'
 )
-
-if old1 in content:
-    content = content.replace(old1, new1, 1)
-    print("  [OK] Correction 1 (_DSM) appliquée.")
+if old_dsm in content:
+    content = content.replace(old_dsm, new_dsm, 1)
+    print("  [OK] Correction _DSM appliquée.")
 else:
-    print("  [ATTENTION] Correction 1 (_DSM) : motif non trouvé, peut-être déjà patché ?")
+    print("  [ATTENTION] Correction _DSM : motif non trouvé.")
 
-# Correction 2 : _CRS — Ajoute un Else si le second If pour TPTY==0x02 est absent
-# Cherche le premier If pour TPTY==0x01 et ajoute un Else après
-crs_pattern = re.compile(
-    r'If \(\(.*TPTY.*== 0x01\)\)\n'  # Ligne du If
-    r'\s*\{\n'                      # Ouverture du bloc
-    r'.*?'                          # Contenu du bloc (non-greedy)
-    r'Return \(ConcatenateResTemplate \(SBFB, SBFG\)\)\n'  # Ligne de retour
-    r'\s*\}\s*'                     # Fermeture du bloc
-)
-
-# Remplace par le même bloc + un Else ajouté
-crs_replacement = (
-    'If ((^^^PCI0.LPC0.H_EC.ECRD (RefOf (^^^PCI0.LPC0.H_EC.TPTY)) == 0x01))\n'
+# --- Correction 2 : _CRS (If -> Else) ---
+old_crs = (
+    'Return (ConcatenateResTemplate (SBFB, SBFG))\n'
+    '                }\n'
+    '                If ((^^^PCI0.LPC0.H_EC.ECRD (RefOf (^^^PCI0.LPC0.H_EC.TPTY)) == 0x02))\n'
     '                {\n'
-    '                    Name (SBFB, ResourceTemplate ()\n'
-    '                    {\n'
-    '                        I2cSerialBusV2 (0x0015, ControllerInitiated, 0x00061A80,\n'
-    '                            AddressingMode7Bit, "\\_SB.I2CD",\n'
-    '                            0x00, ResourceConsumer, , Exclusive,\n'
-    '                            )\n'
-    '                    })\n'
-    '                    Return (ConcatenateResTemplate (SBFB, SBFG))\n'
+    '                    Name (SBFC'
+)
+new_crs = (
+    'Return (ConcatenateResTemplate (SBFB, SBFG))\n'
     '                }\n'
     '                Else\n'
+    '                // If ((^^^PCI0.LPC0.H_EC.ECRD (RefOf (^^^PCI0.LPC0.H_EC.TPTY)) == 0x02))\n'
     '                {\n'
-    '                    Name (SBFC, ResourceTemplate ()\n'
-    '                    {\n'
-    '                        I2cSerialBusV2 (0x002C, ControllerInitiated, 0x00061A80,\n'
-    '                            AddressingMode7Bit, "\\_SB.I2CD",\n'
-    '                            0x00, ResourceConsumer, , Exclusive,\n'
-    '                            )\n'
-    '                    })\n'
-    '                    Return (ConcatenateResTemplate (SBFC, SBFG))\n'
-    '                }'
+    '                    Name (SBFC'
 )
-
-if crs_pattern.search(content):
-    content = crs_pattern.sub(crs_replacement, content, 1)
-    print("  [OK] Correction 2 (_CRS) appliquée : Else ajouté pour TPTY==0x02.")
+if old_crs in content:
+    content = content.replace(old_crs, new_crs, 1)
+    print("  [OK] Correction _CRS appliquée.")
 else:
-    print("  [ATTENTION] Correction 2 (_CRS) : motif non trouvé. Vérifie manuellement le DSDT.")
+    # Si le motif n'est pas trouvé, applique la correction manuellement pour ton cas spécifique
+    crs_pattern = re.compile(
+        r'If \(\(.*TPTY.*== 0x01\)\)\n'
+        r'\s*\{\n'
+        r'.*?Return \(ConcatenateResTemplate \(SBFB, SBFG\)\)\n'
+        r'\s*\}\n'
+        r'\s*If \(\(.*TPTY.*== 0x02\)\)\n'
+        r'\s*\{'
+    )
+    crs_replacement = (
+        'If ((^^^PCI0.LPC0.H_EC.ECRD (RefOf (^^^PCI0.LPC0.H_EC.TPTY)) == 0x01))\n'
+        '                {\n'
+        '                    Name (SBFB, ResourceTemplate ()\n'
+        '                    {\n'
+        '                        I2cSerialBusV2 (0x0015, ControllerInitiated, 0x00061A80,\n'
+        '                            AddressingMode7Bit, "\\_SB.I2CD",\n'
+        '                            0x00, ResourceConsumer, , Exclusive,\n'
+        '                            )\n'
+        '                    })\n'
+        '                    Return (ConcatenateResTemplate (SBFB, SBFG))\n'
+        '                }\n'
+        '                Else\n'
+        '                // If ((^^^PCI0.LPC0.H_EC.ECRD (RefOf (^^^PCI0.LPC0.H_EC.TPTY)) == 0x02))\n'
+        '                {\n'
+        '                    Name (SBFC, ResourceTemplate ()\n'
+        '                    {\n'
+        '                        I2cSerialBusV2 (0x002C, ControllerInitiated, 0x00061A80,\n'
+        '                            AddressingMode7Bit, "\\_SB.I2CD",\n'
+        '                            0x00, ResourceConsumer, , Exclusive,\n'
+        '                            )\n'
+        '                    })\n'
+        '                    Return (ConcatenateResTemplate (SBFC, SBFG))\n'
+        '                }'
+    )
+    if crs_pattern.search(content):
+        content = crs_pattern.sub(crs_replacement, content, 1)
+        print("  [OK] Correction _CRS appliquée (version adaptée).")
+    else:
+        print("  [ATTENTION] Correction _CRS : motif non trouvé. Vérifie manuellement.")
 
 with open(sys.argv[1], 'w') as f:
     f.write(content)
 PYEOF
 
-success "Correctif appliqué sur le DSDT."
+success "Correctifs appliqués."
 
-# =============================================================================
-# 4. Recompilation et création de l'initrd
-# =============================================================================
+# --- Recompilation ---
+info "Recompilation du DSDT..."
+cp "$DSDT" "$WORKDIR/dsdt.dsl"
+cd "$WORKDIR"
+iasl -sa dsdt.dsl || error "Erreur de recompilation."
+success "DSDT recompilé."
 
-echo ""
-info "Étape 4 — Recompilation du DSDT..."
-cp "$DSDT" "$WORKDIR/dsdt.dsl" || error "Impossible de copier $DSDT"
-cd "$WORKDIR" || error "Impossible de revenir dans $WORKDIR"
-iasl -sa dsdt.dsl 2>/dev/null || error "Erreur lors de la recompilation du DSDT. Vérifiez le fichier dsdt.dsl."
-success "DSDT recompilé avec succès."
-
-info "Création de l'archive initrd..."
+# --- Installation ---
+info "Installation des tables ACPI..."
 mkdir -p kernel/firmware/acpi
-cp dsdt.aml kernel/firmware/acpi/ || error "Impossible de copier dsdt.aml"
-find kernel | cpio -H newc --create > /boot/initrd_acpi_patched || error "Impossible de créer l'initrd."
-success "Archive /boot/initrd_acpi_patched créée."
+cp dsdt.aml kernel/firmware/acpi/
+find kernel | cpio -H newc --create > /boot/initrd_acpi_patched
+echo 'GRUB_EARLY_INITRD_LINUX_CUSTOM="initrd_acpi_patched"' > /etc/default/grub.d/acpi-tables.cfg
+update-grub || error "Erreur de mise à jour GRUB."
+success "Tables ACPI installées."
 
-# =============================================================================
-# 5. Configuration de GRUB
-# =============================================================================
-
-echo ""
-info "Étape 5 — Configuration de GRUB..."
-mkdir -p /etc/default/grub.d
-echo 'GRUB_EARLY_INITRD_LINUX_CUSTOM="initrd_acpi_patched"' > /etc/default/grub.d/acpi-tables.cfg || error "Impossible d'écrire le fichier de configuration GRUB."
-update-grub || error "Impossible de mettre à jour GRUB."
-success "GRUB mis à jour."
-
-# =============================================================================
-# 6. Nettoyage
-# =============================================================================
-
-cd / || error "Impossible de revenir à la racine."
+# --- Nettoyage ---
+cd /
 rm -rf "$WORKDIR"
-success "Fichiers temporaires supprimés."
+success "Nettoyage terminé."
 
-# =============================================================================
-# Fin
-# =============================================================================
-
+# --- Instructions finales ---
 echo ""
 echo -e "${GREEN}============================================================${NC}"
 echo -e "${GREEN}   Correctif appliqué avec succès !${NC}"
@@ -254,7 +176,7 @@ echo ""
 echo -e "  👉 Redémarre ton laptop pour activer le correctif :"
 echo -e "     ${YELLOW}reboot${NC}"
 echo ""
-echo -e "  Après redémarrage, vérifie que le touchpad est reconnu :"
+echo -e "  Après redémarrage, vérifie le touchpad avec :"
 echo -e "     ${YELLOW}dmesg | grep -i elan${NC}"
 echo -e "     ${YELLOW}libinput list-devices${NC}"
 echo ""
