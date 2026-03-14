@@ -16,7 +16,16 @@ On corrige la table ACPI, puis on demande à Linux de l'utiliser à la place de 
 git clone https://github.com/lenormandien/lenovo-14w-gen2-touchpad-fix.git
 cd lenovo-14w-gen2-touchpad-fix
 sudo bash fix-touchpad-lenovo-14w.sh
-reboot
+sudo sbin/reboot
+```
+
+## Mise à jour
+
+```bash
+cd lenovo-14w-gen2-touchpad-fix
+git pull
+sudo bash fix-touchpad-lenovo-14w.sh
+sudo sbin/reboot
 ```
 
 Le script doit être exécuté en **root** (ou avec `sudo`).
