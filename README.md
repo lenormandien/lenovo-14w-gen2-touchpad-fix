@@ -26,7 +26,6 @@ sudo sbin/reboot
 cd lenovo-14w-gen2-touchpad-fix
 git pull
 sudo bash fix-touchpad-lenovo-14w.sh
-sudo sbin/reboot
 ```
 
 Le script doit être exécuté en **root** (ou avec `sudo`).
