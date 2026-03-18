@@ -93,8 +93,9 @@ sudo systemctl enable fix-touchpad-resume.service
 
 | Distro | Statut |
 |---|---|
-| Debian 13 | ✅ Testé |
-| Ubuntu 24.04+ | 🔄 Non testé (devrait fonctionner) |
+| Linux Mint 22.3 | ✅ Testé |
+| Debian 13 | 🔄 Non testé (devrait fonctionner) |
+| Arch Linux | 🔄 Non testé (devrait fonctionner) |
 | Autres distros avec GRUB2 | 🔄 Non testé |
 
 ## Contribuer
